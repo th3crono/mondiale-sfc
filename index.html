@@ -422,6 +422,11 @@ details.card[open] > summary::after{content:"−"}
 .board.sk-feltro{background:#1C4A37;color:#F1F6F2}
 .board.sk-oro{background:linear-gradient(135deg,#4A3812,#7C5E1E);color:#FFF6DE}
 .board.sk-feltro .be,.board.sk-feltro .fine,.board.sk-oro .be,.board.sk-oro .fine{color:rgb(255 255 255 / .7)}
+details.sec > summary{gap:12px;padding:2px 0}
+details.sec[open] > summary{padding-bottom:6px;border-bottom:1px solid var(--surface-2)}
+.sumt{display:flex;flex-direction:column;gap:3px;min-width:0}
+.sum-name{font:800 22px/1 var(--f-display);text-transform:uppercase;letter-spacing:.02em;color:var(--ink)}
+.sumt .tier{align-self:flex-start;margin-bottom:2px}
 .toast{position:fixed;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));top:calc(60px + env(safe-area-inset-top,0px));max-width:528px;margin:0 auto;background:var(--board-bg);color:var(--board-fg);padding:12px 14px;border-radius:10px;z-index:20;font-weight:700;box-shadow:0 6px 20px rgb(0 0 0 / .25)}
 </style>
 
@@ -1655,7 +1660,7 @@ function buyPrestige(k){
 }
 function prestigeCard(){
   S.cos=S.cos||{owned:[],board:'notte',frame:null};
-  const items=PRESTIGE.map(x=>{
+  const items=PRESTIGE.slice().sort((a,b)=>(a.k==='academy'?prestigeCost('academy'):a.c)-(b.k==='academy'?prestigeCost('academy'):b.c)).map(x=>{
     let act;
     if(x.k==='coppe'){const todo=cupsToForge();act=todo.length?`<button class="btn sm" data-act="pbuy" data-k="coppe" ${S.fiches<3000?'disabled':''}>Forgia la coppa ${esc(KIND_NAME[todo[0]]||todo[0])} · 3.000 fiches</button>`:'<p class="note">Nessuna coppa da forgiare: vinci un nuovo tipo di torneo.</p>';}
     else if(x.k==='academy'){const c=prestigeCost('academy');act=`<button class="btn sm" data-act="pbuy" data-k="academy" ${S.fiches<c?'disabled':''}>Prendi un allievo · ${fmt(c)} fiches</button>`;}
@@ -1665,7 +1670,7 @@ function prestigeCard(){
       else act='<p class="good">Fatto</p>';
     }
     else act=`<button class="btn sm" data-act="pbuy" data-k="${x.k}" ${S.fiches<x.c?'disabled':''}>Compra · ${fmt(x.c)} fiches</button>`;
-    return `<div class="grp"><div class="row"><strong>${x.t}</strong></div><p class="note">${x.d}</p>${act}</div>`;
+    return `<div class="grp"><div class="row"><strong>${x.t}</strong><span class="tag">${fmt(x.k==='academy'?prestigeCost('academy'):x.c)} fiches</span></div><p class="note">${x.d}</p>${act}</div>`;
   }).join('');
   const pup=(S.pupils||[]).map(id=>P(id)).filter(Boolean);
   return `<article class="card"><div class="label">Prestigio</div><p class="note">Spese che non cambiano la difficoltà dei match ma lasciano il segno nel circuito.</p>${items}${pup.length?`<div class="grp"><div class="label">I tuoi allievi</div><div class="list">${pup.map(p=>`<div class="lr"><span class="nm">${nm(p)} <span class="tag">${p.age} anni</span></span><span class="sc ink">${Math.round(p.elo)}</span></div>`).join('')}</div></div>`:''}${S.cos.board!=='notte'||S.cos.frame?`<button class="btn ghost sm" data-act="pplain">Torna all’aspetto normale</button>`:''}</article>`;
@@ -2194,22 +2199,34 @@ function renderProf(){
   h+=`<article class="card"><div class="label">Scala dei titoli</div><div class="list">${TITLES.map((T,i)=>`<div class="lr${i===me.title?' me':''}"><span class="nm wrap"><span class="tchip">${T.k}</span>${T.name}</span><span class="sc${i<=me.title?' up':''}">${T.elo}${T.nk?' + 2 norme':''}</span></div>`).join('')}</div></article>`;
   $('#scr-prof').innerHTML=h;
 }
+const UP_KEY='mondiale-scf-upopen';
+function upOpen(){if(!ui.upOpen){let v=null;try{v=JSON.parse(localStorage.getItem(UP_KEY)||'null');}catch(e){}ui.upOpen=new Set(Array.isArray(v)?v:[]);}return ui.upOpen;}
+function saveUpOpen(){try{localStorage.setItem(UP_KEY,JSON.stringify([...upOpen()]));}catch(e){}}
+function sec(key,title,sub,inner,badge){
+  return `<details class="card sec" data-sec="${key}" ${upOpen().has(key)?'open':''}><summary><span class="sumt">${badge||''}<span class="sum-name">${title}</span><span class="tag">${sub}</span></span></summary>${inner}</details>`;
+}
 function renderUp(){
-  let h=`<article class="card"><div class="label">Fiches disponibili</div><div class="big-num" style="font-size:52px">${fmt(S.fiches)}</div><p class="note">I potenziamenti sono permanenti e si comprano tra un torneo e l'altro.</p></article>`;
-  h+=coachCard();
-  h+=prestigeCard();
-  h+=`<article class="card"><div class="label">Codice premio</div><div class="field"><label class="label" for="in-code">Inserisci un codice</label><input class="txt" id="in-code" maxlength="20" autocomplete="off" autocapitalize="characters"></div><button class="btn ghost sm" data-act="code">Riscatta</button><p class="note">Ogni codice vale una volta sola su questo dispositivo, nella carriera aperta in quel momento.</p></article>`;
-  Object.entries(UPG).forEach(([k,u])=>{
-    const lvl=S.up[k]||0,max=u.cost.length,cost=u.cost[lvl],lk=lvl<max?upgLock(k):null;
+  let h=`<article class="card"><div class="label">Fiches disponibili</div><div class="big-num" style="font-size:52px">${fmt(S.fiches)}</div><p class="note">I potenziamenti sono permanenti e si comprano tra un torneo e l'altro. Tocca una sezione per aprirla o chiuderla.</p><div class="row" style="justify-content:flex-start;gap:16px"><button class="linkbtn" data-act="upall">Apri tutto</button><button class="linkbtn" data-act="upnone">Chiudi tutto</button></div></article>`;
+  const base=['scout','db','falco','poker'].filter(k=>UPG[k]);
+  const elite=Object.keys(UPG).filter(k=>!base.includes(k)).sort((a,b)=>UPG[a].cost[0]-UPG[b].cost[0]);
+  const card=k=>{
+    const u=UPG[k],lvl=S.up[k]||0,max=u.cost.length,cost=u.cost[lvl],lk=lvl<max?upgLock(k):null;
     const bars=Array.from({length:max},(_,i)=>`<i class="${i<lvl?'on':''}"></i>`).join('');
     const list=u.levels.map((t,i)=>`<li class="${i<lvl?'on':''}${i===lvl?' cur':''}${i===lvl+1?' next':''}"><b>${i}</b><span>${t}</span></li>`).join('');
-    h+=`<article class="card">
-      <div class="upg-head"><div>${u.elite?'<span class="tier t-slam">Élite</span>':''}<div class="upg-name">${u.name}</div><div class="cc">Livello ${lvl} di ${max}</div></div><div class="lv" aria-hidden="true">${bars}</div></div>
+    const sub=lvl>=max?`livello ${lvl} di ${max} · completo`:lk?`livello ${lvl} di ${max} · bloccato`:`livello ${lvl} di ${max} · prossimo ${fmt(cost)}`;
+    const inner=`<div class="upg-head"><div class="cc">Livello ${lvl} di ${max}</div><div class="lv" aria-hidden="true">${bars}</div></div>
       <p class="note">${UPG_INFO[k]}</p>
       <ol class="lvl-list">${list}</ol>
-      ${lvl>=max?'<button class="btn ghost sm" disabled>Livello massimo</button>':lk?`<p class="lock">${lk} Costa ${fmt(cost)} fiches.</p>`:`<button class="btn sm" data-act="buy" data-k="${k}" ${S.fiches<cost?'disabled':''}>Potenzia · ${fmt(cost)} fiches</button>`}
-    </article>`;
-  });
+      ${lvl>=max?'<button class="btn ghost sm" disabled>Livello massimo</button>':lk?`<p class="lock">${lk} Costa ${fmt(cost)} fiches.</p>`:`<button class="btn sm" data-act="buy" data-k="${k}" ${S.fiches<cost?'disabled':''}>Potenzia · ${fmt(cost)} fiches</button>`}`;
+    return sec('u-'+k,u.name,sub,inner,u.elite?'<span class="tier t-slam">Élite</span>':'');
+  };
+  h+=`<div class="label">Potenziamenti</div>`+base.map(card).join('');
+  if(elite.length)h+=`<div class="label">Potenziamenti d'élite</div>`+elite.map(card).join('');
+  const cc=coachCard().replace(/^<article class="card"><div class="row"><span class="label">Allenatori<\/span><span class="tag">[^<]*<\/span><\/div>/,'').replace(/<\/article>\s*$/,'');
+  h+=`<div class="label">Squadra</div>`+sec('coach','Allenatori',S.coachSel?'in panchina: '+COACHES.find(c=>c.id===S.coachSel).name:'nessuno in panchina',cc);
+  h+=sec('code','Codice premio','riscatta un codice',`<div class="field"><label class="label" for="in-code">Inserisci un codice</label><input class="txt" id="in-code" maxlength="20" autocomplete="off" autocapitalize="characters"></div><button class="btn ghost sm" data-act="code">Riscatta</button><p class="note">Ogni codice vale una volta sola su questo dispositivo, nella carriera aperta in quel momento.</p>`);
+  const pc=prestigeCard().replace(/^<article class="card"><div class="label">Prestigio<\/div>/,'').replace(/<\/article>\s*$/,'');
+  h+=`<div class="label">Prestigio</div>`+sec('prestige','Prestigio','dal meno costoso al più costoso',pc);
   $('#scr-up').innerHTML=h;
 }
 function renderTrophy(){
@@ -2574,6 +2591,8 @@ document.addEventListener('click',e=>{
   else if(a==='retire'){ui.confirmRetire=true;render();}
   else if(a==='retire-no'){ui.confirmRetire=false;render();}
   else if(a==='retire-yes'){ui.confirmRetire=false;retireCareer();save();publishShared();render();window.scrollTo(0,0);}
+  else if(a==='upall'){const o=upOpen();Object.keys(UPG).forEach(k=>o.add('u-'+k));['coach','code','prestige'].forEach(k=>o.add(k));saveUpOpen();render();}
+  else if(a==='upnone'){upOpen().clear();saveUpOpen();render();}
   else if(a==='pbuy'){buyPrestige(t.dataset.k);save();publishShared();render();}
   else if(a==='pskin'){S.cos.board=t.dataset.k;save();render();}
   else if(a==='pframe'){S.cos.frame=t.dataset.k;save();render();}
@@ -2586,6 +2605,7 @@ document.addEventListener('click',e=>{
   else if(a==='reset-no'){ui.confirmReset=false;render();}
   else if(a==='reset-yes'){ui.confirmReset=false;clearSave();S=null;render();window.scrollTo(0,0);}
 });
+document.addEventListener('toggle',e=>{const d=e.target;if(!d||!d.dataset||!d.dataset.sec)return;const o=upOpen();if(d.open)o.add(d.dataset.sec);else o.delete(d.dataset.sec);saveUpOpen();},true);
 document.addEventListener('keydown',e=>{
   if(RM.duel&&!RM.duel.done&&!(e.target&&e.target.tagName==='INPUT')){const mm={'1':'R','2':'P','3':'S'}[e.key];if(mm){e.preventDefault();duelPick(mm);}return;}
   if(!S||S.screen!=='match'||!S.ev||!S.ev.match||S.ev.match.done)return;
